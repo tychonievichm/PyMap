@@ -112,16 +112,3 @@ def _renew_polygons_ini():
     for s in polygons_text:
         f.write(s)
     f.close
-
-base_point = Base_Point(1, 2)
-ui = UI_Data("dogegon", "expanding rotation", base_point)
-ax = plt.subplot(111)
-plt.plot(ui.before[0,], ui.before[1,], ui.after[0,], ui.after[1,])
-
-ax.set_aspect('equal', 'box')
-ax.set_xlim(np.array((-3, 3)))
-ax.set_ylim(np.array((-3, 3)))
-ax.grid(True, which='both')
-ax.axhline(y=0, color='k')
-ax.axvline(x=0, color='k')
-plt.show()
