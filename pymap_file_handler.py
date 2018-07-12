@@ -8,13 +8,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-class Shape:
+class Polygon:
     '''This object holds the shape to be plotted in the plot window.'''
     def __init__(self, name=None, x_list=None, y_list=None):
         self.array = np.stack((x_list, y_list))
         self.name = name
 
-class Matrix(Shape):
+class Matrix(Polygon):
     '''This object holds the matrix to be used when transforming the shape.'''
     def __init__(self, name=None, x_list=None, y_list=None):
         super().__init__(name, x_list, y_list)
@@ -23,50 +23,66 @@ class Base_Point:
     def __init__(self, x=0, y=0):
         self.array = np.array((x, y))
         self.array.shape = (2,1)
-        
-    
+
 class UI_Data:
-    def __init__(self, shape=None, matrix=None, base_point=None):
-        self.shape = shape
-        self.matrix = matrix
+    def __init__(self, polygon_name=None, matrix_name=None, base_point=None):
+        self.polygon_dict = _read_polygons_to_dict()
+        self.matrix_dict = _read_matrices_to_dict()
+        self.polygon = self.polygon_dict[polygon_name]
+        self.matrix = self.matrix_dict[matrix_name]
         self.base_point = base_point
-        self.make_plot_shape()
-        self.make_transform_shape()
+        self.make_plot_polygon()
+        self.make_transformed_polygon()
         
-    def make_plot_shape(self):
-        self.before = self.shape.array + self.base_point.array
+    def make_plot_polygon(self):
+        self.before = self.polygon.array + self.base_point.array
     
-    def make_transform_shape(self):
+    def make_transformed_polygon(self):
         self.after = self.matrix.array @ self.before
 
-def _read_code_to_dict(file_name):
-    """Convert a text file into a dictionary of CodeLines."""
-    f = open(file_name, "r")
-    turing_code = f.read()
-    # If IOError is raised here, the program quits.
+def _read_matrices_to_dict():
+    f = open("matrices.ini", "r")
+    matrix_data = f.read()
     f.close()
-    turing_code = turing_code.split("\n")
-    turing_code = {s for s in turing_code if s.strip() != "" and s[0] != '#'}
-    # Remove comments and blank lines.
-    code_dict = {_CodeLine(s).key: _CodeLine(s) for s in turing_code}
-    if " " in code_dict.keys():
-        code_dict.pop(" ")
-    return code_dict
+    matrix_data = matrix_data.split("\n")
+    matrix_data = [s for s in matrix_data if s.strip() != "" and s[0] != '#']
+    matrix_dict = dict()
+    for s in matrix_data:
+        if s.split(":")[0] == "name":
+            name = s.split(":")[1]
+            coeff_list = (matrix_data[matrix_data.index(s) + 1]).split(" ")
+            coeff_list = [float(t) for t in coeff_list]
+            matrix_dict[name] = Matrix(name, coeff_list[0:2], coeff_list[2:])
+            # print("Added matrix " + name)
+    return matrix_dict
 
+def _read_polygons_to_dict():
+    f = open("polygons.ini", "r")
+    polygon_data = f.read()
+    f.close()
+    polygon_data = polygon_data.split("\n")
+    polygon_data = [s for s in polygon_data if s.strip() != "" and s[0] != '#']
+    polygon_dict = dict()
+    for s in polygon_data:
+        if s.split(":")[0] == "name":
+            name = s.split(":")[1]
+            coord_list = [0]*2
+            for i in range(2):
+                coord_list[i] = polygon_data[polygon_data.index(s) + 1 + i].split(" ")
+                shift = float(coord_list[i].pop(0).split(":")[1])
+                coord_list[i] = [float(t) - shift for t in coord_list[i]]
+            polygon_dict[name] = Polygon(name, coord_list[0], coord_list[1])
+    return polygon_dict
 
-
-
-
-
-
-
-
-
-
-
-shape = Shape('testshape',[1, 2, 3, 4, 5],[3, 7, 5, 4, 7])
-matrix = Matrix('testmat', [0, 1], [1, 0])
 base_point = Base_Point(1, 2)
-ui = UI_Data(shape, matrix, base_point)
-plt.plot(ui.before[0,], ui.before[1,])
-plt.plot(ui.after[0,], ui.after[1,])
+ui = UI_Data("dogegon", "default", base_point)
+ax = plt.subplot(111)
+plt.plot(ui.before[0,], ui.before[1,], ui.after[0,], ui.after[1,])
+
+ax.set_aspect('equal', 'box')
+ax.set_xlim(np.array((-3, 3)))
+ax.set_ylim(np.array((-3, 3)))
+ax.grid(True, which='both')
+ax.axhline(y=0, color='k')
+ax.axvline(x=0, color='k')
+plt.show()
