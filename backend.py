@@ -5,8 +5,6 @@
 #                                                                       #
 
 import numpy as np
-import matplotlib.pyplot as plt
-
 
 class Polygon:
     '''This object holds the shape to be plotted in the plot window.'''
@@ -58,7 +56,6 @@ def _read_matrices_to_dict():
             coeff_list = (matrix_data[matrix_data.index(s) + 1]).split(" ")
             coeff_list = [float(t) for t in coeff_list]
             matrix_dict[name] = Matrix(name, coeff_list[0:2], coeff_list[2:])
-            # print("Added matrix " + name)
     return matrix_dict
 
 def _renew_matrices_ini():
@@ -94,9 +91,7 @@ def _read_polygons_to_dict():
                 coord_list[i] = [float(t) - shift for t in coord_list[i]]
             polygon_dict[name] = Polygon(name, coord_list[0], coord_list[1])
     return polygon_dict
-
-
-                    
+              
 def _renew_polygons_ini():
     '''Erases polygons.ini and replaces it with the default polygon.ini file.'''
     f = open('polygons.ini', 'w+')
@@ -112,3 +107,6 @@ def _renew_polygons_ini():
     for s in polygons_text:
         f.write(s)
     f.close
+
+def make_default_data():
+    return UI_Data("rectangle", "default", Base_Point(.5, .5))
