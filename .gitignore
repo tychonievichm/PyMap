@@ -1,5 +1,6 @@
-# Windows folder ini
+# misc
 desktop.ini
+old/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
