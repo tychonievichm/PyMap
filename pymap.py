@@ -1,36 +1,129 @@
 #!/usr/bin/env python.
 # -*- coding: utf-8 -*-
-''''''
+'''
+#########################################################################
+#                                                                       #
+#      Michael Tychonievich, Ph.D.                    July, 2018        #
+#             Math Department at The Ohio State University              #
+#                                                                       #
+#########################################################################
+
+This program is a spiritual successor to the map.m program produced by
+Michael Dellnitz c. 1995, which was in turn adapted from the pplane5.m
+code by John Polking.  The code will take polygons and matrices from
+.ini files, load them, and then use matplotlib to show the effect of
+a selected matrix as a linear transformation on the selected polygon.
+Python tkinter and matplotlin are is used to create the GUI, while numpy
+is used on the back end for calculations.
+
+This program initilizes using two .ini files: polygons.ini and matrices.ini.
+If the program does not find either of these files in its working directory,
+the missing file will be created with some default values; most of the
+defaults were taken directly from Michael Dellnitz's code.
+
+Format for .ini files:
+In each file, any blank lines or lines starting with # are ignored when
+the file is loaded.  Spaces, colons, line breaks are used for separation,
+so care must be taken when writing when adding entries to either file.  All
+numerical values will be interpreted as floats.
+
+#########################################################################
+
+Format for polygons.ini to specify a single polygon:
+
+name:<polygon name>
+x:<base point x-value> <space-seperated list of x-values>
+y:<base point y-value> <space-seperated list of y-values>
+
+<polygon name> will be interpreted as a string and used by the program to
+refer to the polygon.  If multiple polygons are given the same name, only the
+last one will be included.  Polygons with an empty name will be ignored.
+Any character other than colon and backslash is allowed in this name.
+
+<base point x-value> and <base point y-value> determine what point will
+be shifted to the origin by the program when the polygon is loaded.  Users
+will effectively be able to determine the position of this point when
+manipulating polygons in the program, with the appearance that the polygon
+is drawn around it.  This should be some kind of notable reference point for
+the polygon, like a corner or barycenter.
+
+<space-seperated list of x-values> and <space-seperated list of y-values>
+determine the vertices of the graphed polygon.  The order of these values is
+important, as the program will read points off of this list as (x, y) pairs
+from left to right when drawing a polygon.  These lists must be of the
+same length!  To ensure a closed outline for a polygon, the first and last
+point these lists specify should be the same.
+
+
+Format for matrices.ini to specify a single matrix:
+
+name:<polygon name>
+<space-separated list of values>
+
+<matrix name> will be interpreted as a string and used by the program to
+refer to the matrix.  If multiple matrices are given the same name, only the
+last one will be included.  Matrices with an empty name will be ignored.
+Any character other than colon and backslash is allowed in this name.
+
+<space-separated list of values> are the entries of the 2x2 matrix
+                            /a_11 a_12\
+                            \a_21 a_22/
+given in the order a_11 a_12 a_21 a_22.  There must be exactly four numbers
+on this list!
+
+#########################################################################
+'''
+import tkinter as tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+import numpy as np
+
 #########################################################################
 #                                                                       #
 #                             Backend code                              #
 #                                                                       #
 #########################################################################
 
-import tkinter as tk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-import numpy as np
 
-
-class Polygon:
+class Polygon:  # pylint: disable=too-few-public-methods
     '''This object holds the shape to be plotted in the plot window.'''
     def __init__(self, name=None, x_list=None, y_list=None):
-        self.array = np.stack((x_list, y_list))
-        self.name = name
+        if name is None or name == "":
+            name = "MissingNo Error: missing name. "
+        if x_list is None and y_list is None:
+            x_list = [1, 0]
+            y_list = [0, 1]
+            name = name + ' Error: missing coordinate values. '
+        try:
+            self.array = np.array((x_list, y_list), dtype=np.float64)
+            self.name = name
+        except ValueError:
+            self.array = np.array(([0, 0], [0, 0]))
+            self.name = name + ' Error coordinate value lists ' +\
+                'different lengths or not numeric. '
 
 
-class Matrix(Polygon):
+class Matrix(Polygon):  # pylint: disable=too-few-public-methods
     '''This object holds the matrix to be used when transforming the shape.'''
     def __init__(self, name=None, x_list=None, y_list=None):
         super().__init__(name, x_list, y_list)
+        if self.array.shape != (2, 2):
+            self.name = name + ' Error: matrix was not size 2x2. '
+            self.array = np.stack(([1, 0], [0, 1]))
 
 
-class BasePoint:
-    '''This should be replaced by a function.'''
+class BasePoint(Polygon):  # pylint: disable=too-few-public-methods
+    '''This object holds the base point to be used when translating
+    the shape.  The name should never be accessed.
+    '''
     def __init__(self, x=0, y=0):
-        self.array = np.array((x, y))
-        self.array.shape = (2, 1)
+        super().__init__(None, [x], [y])
+        if self.array.shape != (2, 1):
+            try:
+                self.array.shape = (2, 1)
+            except ValueError:
+                self.array = np.array([0, 0])
+                self.name = 'Error: base point did not have two coordinates. '
 
 
 class AppData:
@@ -63,15 +156,27 @@ def _read_matrices_to_dict():
     matrix_data = matrix_file.read()
     matrix_file.close()
     matrix_data = matrix_data.split("\n")
-    matrix_data = [s for s in matrix_data if s.strip() != "" and s[0] != '#']
+    matrix_data = [data_string for data_string in matrix_data
+                   if data_string.strip() != "" and data_string[0] != '#']
     matrix_dict = dict()
     for data_string in matrix_data:
         if data_string.split(":")[0] == "name":
             name = data_string.split(":")[1]
+            if name == "":
+                name = 'MissingNo Error: this matrix was given an ' +\
+                    'incorrectly formatted name. '
             coeff_list = matrix_data[matrix_data.index(
                 data_string) + 1].split(" ")
-            coeff_list = [float(entry) for entry in coeff_list]
-            matrix_dict[name] = Matrix(name, coeff_list[0:2], coeff_list[2:])
+            try:
+                coeff_list = [float(entry) for entry in coeff_list]
+            except ValueError:
+                coeff_list = [1, 0, 0, 1]
+                name = name + ' Error: a non-numeric value was given for ' +\
+                    'this matrix in matrices.ini. '
+            if len(coeff_list) != 4:
+                name = name + ' Error: this matrix was given too many ' +\
+                    'entries in matrices.ini. '
+            matrix_dict[name] = Matrix(name, coeff_list[0:2], coeff_list[2:4])
     return matrix_dict
 
 
@@ -105,13 +210,20 @@ def _read_polygons_to_dict():
     for data_string in polygon_data:
         if data_string.split(":")[0] == "name":
             name = data_string.split(":")[1]
+            if name == "":
+                name = 'MissingNo Error: this matrix was given an ' +\
+                    'incorrectly formatted name. '
             coord_list = [0]*2
-            for i in range(2):
-                coord_list[i] = polygon_data[polygon_data.index(data_string)
-                                             + 1 + i].split(" ")
-                shift = float(coord_list[i].pop(0).split(":")[1])
-                coord_list[i] = [float(entry) - shift for
-                                 entry in coord_list[i]]
+            try:
+                for i in range(2):
+                    coord_list[i] = polygon_data[polygon_data.index(
+                        data_string) + 1 + i].split(" ")
+                    shift = float(coord_list[i].pop(0).split(":")[1])
+                    coord_list[i] = [float(entry) - shift for
+                                     entry in coord_list[i]]
+            except ValueError:
+                    name = name + ' Error: the numerical data for this ' +\
+                        'polygon was incorrectly formatted.'
             polygon_dict[name] = Polygon(name, coord_list[0], coord_list[1])
     return polygon_dict
 
@@ -155,7 +267,7 @@ class SimpleFrame(tk.Frame):  # pylint: disable=too-many-ancestors
 
 
 class BufferFrame:
-    """Empty frame for spacing purposes."""
+    """Empty frame for spacing purposes.  This should be a function."""
     def __init__(self, parent, ht, wd, sd):
         self.container = tk.Frame(parent, height=ht, width=wd)
         self.container.pack(side=sd, expand=False)
