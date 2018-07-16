@@ -240,7 +240,7 @@ def _renew_polygons_ini():
     '''
     print('Creating polygons.ini.')
     polygon_file = open('polygons.ini', 'w+')
-    polygons_text = ["name:rectangle\nx:0 0 2 2 0 0\ny:0 0 0 1 1 0\n\n",
+    polygons_text = ["name:rectangle\nx:0 0 1 1 0 0\ny:0 0 0 0.5 0.5 0\n\n",
                      "name:line\nx:0 0 1.7 0\ny:0 0 0.3 0\n\n",
                      "name:basis\nx:0 0 1 0 0.707 0\ny:0 0 0 0 0.707 0\n\n",
                      "name:square\nx:0 0 1 1 0 0\ny:0 0 0 1 1 0\n\n",
@@ -638,9 +638,10 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0901
         the plot and then updates the app using the coordinates as a base
         point for the polygon.'''
         entry = app.main_frame.control_frame.base_point_frame.entry
-        entry.ent_1.set(event.xdata)
-        entry.ent_2.set(event.ydata)
-        app.main_frame.control_frame.update_app_data()
+        if event.xdata is not None and event.ydata is not None:
+            entry.ent_1.set(event.xdata)
+            entry.ent_2.set(event.ydata)
+            app.main_frame.control_frame.update_app_data()
 
 
 app = PyMapApp()  # pylint: disable=C0103
