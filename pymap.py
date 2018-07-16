@@ -283,8 +283,11 @@ class BufferFrame:
 
 
 class PyMapApp(tk.Tk):
-    '''This is the main tkinter application.  Some documentation will
-    go here.
+    '''This is the main tkinter application.  It creates several frames
+    using the data from app_data, with the data moved to the UI after
+    the tkinter app has completely loaded.  Several of the classes
+    could be replaced by functions, but they were left in because it
+    makes it simpler to add features in the future.
     '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -330,7 +333,9 @@ class ControlFrame(SimpleFrame):  # pylint: disable=R0901
         BufferFrame(self, 300, 1, "top")
 
     def refresh_entries(self):
-        '''This takes the data from app_data and propagates it to the UI.'''
+        '''This takes the data from app_data and propagates it to the UI.
+        before refreshing the plot figure.
+        '''
         base_point = app_data.base_point.array
         self.base_point_frame.entry.ent_1.set(float(base_point.item(0, 0)))
         self.base_point_frame.entry.ent_2.set(float(base_point.item(1, 0)))
@@ -574,6 +579,12 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0901
         super().__init__(parent, *args, **kwargs)
         self.plot_figure = Figure(figsize=(8, 8), dpi=100)
         self.plot_axis = self.plot_figure.add_subplot(111)
+        self.plot_axis.set_axisbelow(True)
+        self.plot_axis.set_aspect('equal', 'box')
+        self.plot_before = None
+        self.plot_after = None
+        self.fill_before = None
+        self.fill_after = None
         self.canvas = FigureCanvasTkAgg(self.plot_figure, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(
@@ -582,6 +593,7 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0901
         self.canvas._tkcanvas.pack(  # pylint: disable=W0212
             side="top", fill="both", expand=True
             )
+        self.canvas.mpl_connect('button_press_event', self.onclick)
 
     def replot(self):
         '''Erases old plots and creates a new plot based on the contents
@@ -594,39 +606,37 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0901
         entry_list = x_1.tolist() + y_1.tolist() + x_2.tolist() + y_2.tolist()
         max_entry = max(map(abs, entry_list))
         ax_lim = max([max_entry * 1.2, 3])
-        self.plot_figure = Figure(figsize=(8, 8), dpi=100)
-        self.plot_axis = self.plot_figure.add_subplot(111)
+        self.plot_axis.clear()
         self.plot_axis.axhline(y=0, color='k')
         self.plot_axis.axvline(x=0, color='k')
         self.plot_axis.grid(True, which='both')
-        self.plot_axis.set_axisbelow(True)
-        before, = self.plot_axis.plot(x_1, y_1, color='#666666', linewidth=2.5)
-        after, = self.plot_axis.plot(x_2, y_2, color='#BB0000', linewidth=2.5)
-        self.plot_axis.fill(x_1, y_1, facecolor='#666666', alpha=.5)
-        self.plot_axis.fill(x_2, y_2, facecolor='#BB0000', alpha=.5)
-        self.plot_axis.set_aspect('equal', 'box')
-        self.plot_axis.set_xlim(np.array((-ax_lim, ax_lim)))
-        self.plot_axis.set_ylim(np.array((-ax_lim, ax_lim)))
+        self.plot_before = self.plot_axis.plot(
+            x_1, y_1, color='#666666', linewidth=2.5
+            )
+        self.plot_after = self.plot_axis.plot(
+            x_2, y_2, color='#BB0000', linewidth=2.5
+            )
+        self.fill_before = self.plot_axis.fill(
+            x_1, y_1, facecolor='#666666', alpha=.5
+            )
+        self.fill_after = self.plot_axis.fill(
+            x_2, y_2, facecolor='#BB0000', alpha=.5
+            )
+        before, = self.plot_before
+        after, = self.plot_after
         self.plot_axis.legend(
             [before, after], ['Before Transformation',
                               'After Transformation'], loc='upper right'
             )
-        try:
-            self.canvas.get_tk_widget().destroy()
-        except AttributeError:
-            pass
-        self.canvas = FigureCanvasTkAgg(self.plot_figure, self)
+        self.plot_axis.set_xlim(np.array((-ax_lim, ax_lim)))
+        self.plot_axis.set_ylim(np.array((-ax_lim, ax_lim)))
         self.canvas.draw()
-        self.canvas.get_tk_widget().pack(
-            side="bottom", fill="both", expand=True
-            )
-        self.canvas._tkcanvas.pack(  # pylint: disable=W0212
-            side="top", fill="both", expand=True
-            )
-        self.canvas.mpl_connect('button_press_event', self.onclick)
 
     @staticmethod
     def onclick(event):
+        '''Places coordinate information in the UI when the user clicks on
+        the plot and then updates the app using the coordinates as a base
+        point for the polygon.'''
         entry = app.main_frame.control_frame.base_point_frame.entry
         entry.ent_1.set(event.xdata)
         entry.ent_2.set(event.ydata)
@@ -635,10 +645,11 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0901
 
 app = PyMapApp()  # pylint: disable=C0103
 app.main_frame.control_frame.refresh_entries()
-
+# This detects if the program is running from a file instead of an
+# interpreter and loads the app icon appropriately.
 if hasattr(sys, '_MEIPASS'):
-    path = sys._MEIPASS
+    path = sys._MEIPASS  # pylint: disable=W0212, E1101, C0103
 else:
-    path = os.path.abspath(".")
+    path = os.path.abspath(".")  # pylint: disable=C0103
 app.iconbitmap(os.path.join(path, 'icon.ico'))
 app.mainloop()
