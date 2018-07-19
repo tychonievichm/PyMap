@@ -407,7 +407,7 @@ class ControlFrame(SimpleFrame):
         # Save the matrix to the dictionary if an unused name is given, then
         # reload the dropdown menu to allow the matrix to be used again.
         if name not in list(self.root.data.matrix_dict.keys()):
-            self.root.data.matrix_dict.add_matrix_to_dict(matrix)
+            self.root.data.add_matrix_to_dict(matrix)
             self.matrix_frame.choices.append(name)
             self.matrix_frame.choice.set(name)
             self.matrix_frame.menu_frame.reload(
@@ -477,16 +477,8 @@ class MenuFrame(tk.Frame):
     def __init__(self, parent, choice, *choices, command=None):
         super().__init__(parent)
         self.pack(side="top", fill="none", expand=True)
-        if command is None:
-            self.menu = tk.OptionMenu(  # pylint: disable=E1120
-                self, choice, *choices
-                )
-        else:
-            self.menu = tk.OptionMenu(  # pylint: disable=E1120
-                self, choice, *choices, command=command
-                )
-        self.menu.config(width=14, height=1, font=("Helvetica", 8))
-        self.menu.pack(side="top", fill="x", expand=True)
+        self.menu = None
+        self.reload(choice, *choices, command)
 
     def reload(self, choice, *choices, command=None):
         '''Recreates the pulldown menu with an updated options list.  It
@@ -504,7 +496,7 @@ class MenuFrame(tk.Frame):
             self.menu = tk.OptionMenu(  # pylint: disable=E1120
                 self, choice, *choices, command=command
                 )
-        self.menu.config(width=20, height=1)
+        self.menu.config(width=13, height=1, font=("Helvetica", 8))
         self.menu.pack(side="top", fill="x", expand=True)
 
 
