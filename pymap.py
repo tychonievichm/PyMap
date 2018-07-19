@@ -20,9 +20,11 @@ is used on the back end for calculations.
 This program initilizes using two .ini files: polygons.ini and matrices.ini.
 If the program does not find either of these files in its working directory,
 the missing file will be created with some default values; most of the
-defaults were taken directly from Michael Dellnitz's code.
+defaults were taken directly from Michael Dellnitz's code, while everything
+else is new.
 
-Format for .ini files:
+### Format for .ini files ###
+
 In each file, any blank lines or lines starting with # are ignored when
 the file is loaded.  Spaces, colons, line breaks are used for separation,
 so care must be taken when writing when adding entries to either file.  All
@@ -30,7 +32,7 @@ numerical values will be interpreted as floats.
 
 #########################################################################
 
-Format for polygons.ini to specify a single polygon:
+# Format for polygons.ini to specify a single polygon #
 
 name:<polygon name>
 x:<base point x-value> <space-seperated list of x-values>
@@ -56,7 +58,7 @@ same length!  To ensure a closed outline for a polygon, the first and last
 point these lists specify should be the same.
 
 
-Format for matrices.ini to specify a single matrix:
+# Format for matrices.ini to specify a single matrix #
 
 name:<polygon name>
 <space-separated list of values>
@@ -69,14 +71,14 @@ Any character other than colon and backslash is allowed in this name.
 <space-separated list of values> are the entries of the 2x2 matrix
                             /a[0]1 a[0]2\
                             \a[1]1 a[1]2/
-given in the order a[0]1 a[0]2 a[1]1 a[1]2.  There must be exactly four numbers
-on this list!
+given in the order a[0]1 a[0]2 a[1]1 a[1]2.  There must be exactly four
+numberson this list!
 
 #########################################################################
 '''
 import os
-import sys
-import tkinter as tk
+import sys  # os and sys are imported only to look for the program icon
+import tkinter as tk  # tkinter powers the GUI
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
@@ -85,12 +87,24 @@ import numpy as np
 #########################################################################
 #                                                                       #
 #                             Backend code                              #
+# This part of the code deals with calculations made before matplotlib  #
+# or tkinter are used to create graphics.  It is written so that        #
+# upgrading to work with more dimensions will not be too painful,       #
+# so that the matplotlib code (and a little bit of the tkinter code)    #
+# is the only part that would require significant changes.              #
 #                                                                       #
 #########################################################################
 
 
 class Polygon:  # pylint: disable=R0903
-    '''This object holds the shape to be plotted in the plot window.'''
+    '''This object holds the shape to be plotted in the plot window.
+    It's currently set up record any exceptions in the .name property for easy
+    display in the GUI for testing while the console is not visible (and
+    because bad user inputs are almost certainly how these issues arise in
+    the first place.).  Polygon and its subclasses are essentially numpy
+    arrays with some special initialization requirements, but I found it
+    convenient to have a special "array" field.
+    '''
     def __init__(self, name=None, x_list=None, y_list=None):
         if name is None or name == "":
             name = "MissingNo Error: missing name. "
@@ -108,17 +122,22 @@ class Polygon:  # pylint: disable=R0903
 
 
 class Matrix(Polygon):  # pylint: disable=R0903
-    '''This object holds the matrix to be used when transforming the shape.'''
+    '''This object holds the matrix to be used when transforming the shape.
+    Both are numpy arrays with the same number of rows, but a matrix must have
+    two columns.
+    '''
     def __init__(self, name=None, x_list=None, y_list=None):
         super().__init__(name, x_list, y_list)
         if self.array.shape != (2, 2):
             self.name = name + ' Error: matrix was not size 2x2. '
-            self.array = np.stack(([1, 0], [0, 1]))
+            self.array = np.array(([1, 0], [0, 1]))
 
 
 class BasePoint(Polygon):  # pylint: disable=R0903
     '''This object holds the base point to be used when translating
-    the shape.  The name should never be accessed.
+    the shape.  The name should never be accessed outside of debugging, but
+    it might be useful to add a list of predefined base point values to the
+    program so I left it on.
     '''
     def __init__(self, x=0, y=0):
         super().__init__(None, [x], [y])
@@ -149,13 +168,20 @@ class AppData:
         '''Create the transformed polygon array for plotting.'''
         self.after = self.matrix.array @ self.before
 
+    def add_matrix_to_dict(self, matrix):
+        '''Add a matrix to the matrix dictionary.'''
+        self.matrix_dict[matrix.name] = matrix
+
+    def add_polygon_to_dict(self, polygon):
+        '''Add a polygon to the polygon dictionary.'''
+        self.polygon_dict[polygon.name] = polygon
+
 
 def _read_matrices_to_dict():
-    '''Gets the list of matrices from the matrices.ini file.'''
+    '''Get the list of matrices from the matrices.ini file.'''
     try:
         matrix_file = open("matrices.ini", "r")
     except FileNotFoundError:
-        print('File matrices.ini not found.')
         _renew_matrices_ini()
         matrix_file = open("matrices.ini", "r")
     matrix_data = matrix_file.read()
@@ -186,7 +212,7 @@ def _read_matrices_to_dict():
 
 
 def _renew_matrices_ini():
-    '''Erases matrices.ini and replaces it with the default matrices.ini
+    '''Erase matrices.ini and replace it with the default matrices.ini
     file.
     '''
     print('Creating matrices.ini.')
@@ -201,11 +227,10 @@ def _renew_matrices_ini():
 
 
 def _read_polygons_to_dict():
-    '''Gets the list of polygons from the polygons.ini file.'''
+    '''Get the list of polygons from the polygons.ini file.'''
     try:
         polygon_file = open("polygons.ini", "r")
     except FileNotFoundError:
-        print('File polygons.ini not found.')
         _renew_polygons_ini()
         polygon_file = open("polygons.ini", "r")
     polygon_data = polygon_file.read()
@@ -236,7 +261,7 @@ def _read_polygons_to_dict():
 
 
 def _renew_polygons_ini():
-    '''Erases polygons.ini and replaces it with the default polygon.ini
+    '''Erase polygons.ini and replace it with the default polygon.ini
     file.
     '''
     print('Creating polygons.ini.')
@@ -263,8 +288,9 @@ def _renew_polygons_ini():
 
 
 class SimpleFrame(tk.Frame):
-    '''This class is to condense some Frame creation and packing code into
-    fewer lines.
+    '''Convenience class to condense some Frame creation and packing code into
+    fewer lines.  The root field is there to remember what tkinter app the
+    frame belongs too.
     '''
     def __init__(self, parent, *args, root=None, **kwargs):
         super().__init__(parent, None)
@@ -272,11 +298,11 @@ class SimpleFrame(tk.Frame):
         self.pack(*args, **kwargs)
 
 
-class BufferFrame:
-    """Empty frame for spacing purposes.  This should be a function."""
-    def __init__(self, parent, ht, wd, sd):
-        self.container = tk.Frame(parent, height=ht, width=wd)
-        self.container.pack(side=sd, expand=False)
+def spacer(parent, ht, wd, sd):
+    """Empty frame for spacing purposes."""
+    container = tk.Frame(parent, height=ht, width=wd)
+    container.pack(side=sd, expand=False)
+    return container
 
 
 class PyMapApp(tk.Tk):
@@ -288,15 +314,19 @@ class PyMapApp(tk.Tk):
     '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        super().title("PyMap")
+        super().title("pymap")
         self.data = AppData(
                     "rectangle", "default", BasePoint(.5, .5)
                     )
         self.container = SimpleFrame(
             self, side="top", fill="both", expand=True, root=self
             )
+        self.control_adjuster = SimpleFrame(
+            self.container, side="left", fill="y", expand=False
+            )
+        self.control_adjuster.root = self
         self.control_frame = ControlFrame(
-            self.container, side="left", fill="none", expand=True
+            self.control_adjuster, side="top", fill="none", expand=False
             )
         self.plot_frame = PlotFrame(
             self.container, side="left", fill="both", expand=True
@@ -310,19 +340,19 @@ class ControlFrame(SimpleFrame):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
-        BufferFrame(self, 40, 1, "top")
+        spacer(self, 40, 1, "top")
         self.polygon_frame = PolygonFrame(
             self, side="top", fill="both", expand=True
             )
-        BufferFrame(self, 10, 1, "top")
+        spacer(self, 10, 1, "top")
         self.base_point_frame = BasePointFrame(
             self, side="top", fill="both", expand=True
             )
-        BufferFrame(self, 30, 1, "top")
+        spacer(self, 30, 1, "top")
         self.matrix_frame = MatrixFrame(
             self, side="top", fill="both", expand=True
             )
-        BufferFrame(self, 300, 1, "top")
+        spacer(self, 40, 1, "top")
 
     def refresh_entries(self):
         '''This takes the data from root.data and propagates it to the UI.
@@ -348,9 +378,11 @@ class ControlFrame(SimpleFrame):
         '''This takes the data from the UI and propagates it to root.data.
         Non-numeric entries to numeric field are replaced by default values.
         Attempts at entering complex numbers will be considered non-
-        numeric!
+        numeric!  This should be rewritten so that the numbers are put in a
+        single list instead of two.
         '''
         name = self.matrix_frame.save_frame.matrix_name.get()
+        row = self.matrix_frame.row
         x_list = [""] * 2
         y_list = [""] * 2
         try:
@@ -360,7 +392,6 @@ class ControlFrame(SimpleFrame):
             base_point = BasePoint(0, 0)
             name = name + ' Error: a base point entry was non-numeric. '
         self.root.data.base_point = base_point
-        row = self.matrix_frame.row
         for row_index in range(2):
             try:
                 x_list[row_index] = row[0].ent[row_index].get()
@@ -376,7 +407,7 @@ class ControlFrame(SimpleFrame):
         # Save the matrix to the dictionary if an unused name is given, then
         # reload the dropdown menu to allow the matrix to be used again.
         if name not in list(self.root.data.matrix_dict.keys()):
-            self.root.data.matrix_dict[name] = matrix
+            self.root.data.matrix_dict.add_matrix_to_dict(matrix)
             self.matrix_frame.choices.append(name)
             self.matrix_frame.choice.set(name)
             self.matrix_frame.menu_frame.reload(
@@ -424,7 +455,7 @@ class PolygonFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Polygon Name", font=("Helvetica", 12)
+            self, text="Polygon", font=("Helvetica", 12)
             )
         self.label.pack(side="top")
         self.choice = tk.StringVar(self)
@@ -454,13 +485,13 @@ class MenuFrame(tk.Frame):
             self.menu = tk.OptionMenu(  # pylint: disable=E1120
                 self, choice, *choices, command=command
                 )
-        self.menu.config(width=20, height=1)
+        self.menu.config(width=14, height=1, font=("Helvetica", 8))
         self.menu.pack(side="top", fill="x", expand=True)
 
     def reload(self, choice, *choices, command=None):
         '''Recreates the pulldown menu with an updated options list.  It
-        sure would be nice if tkinter.OptionMenus would update dynamically
-        with their definig list, but they don't.'''
+        sure would be nice if a tkinter.OptionMenu would update dynamically
+        with its defining list, but it doesn't.'''
         try:
             self.menu.destroy()
         except AttributeError:
@@ -482,7 +513,7 @@ class BasePointFrame(SimpleFrame):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.label = tk.Label(
-            self, text="Translate the polygon by", font=("Helvetica", 12)
+            self, text="Translate the polygon by", font=("Helvetica", 10)
             )
         self.label.pack(side="top")
         self.entry = EntryFrame(self, side="top", fill="x", expand=True)
@@ -494,7 +525,7 @@ class MatrixFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Matrix name", font=("Helvetica", 12)
+            self, text="Matrix", font=("Helvetica", 12)
             )
         self.label.pack(side="top")
         self.choice = tk.StringVar(self)
@@ -503,14 +534,14 @@ class MatrixFrame(SimpleFrame):
         self.menu_frame = MenuFrame(
             self, self.choice, *self.choices, command=self.change_matrix
             )
-        BufferFrame(self, 10, 1, "top")
+        spacer(self, 10, 1, "top")
         self.label = tk.Label(self, text="Matrix entries",
-                              font=("Helvetica", 12))
+                              font=("Helvetica", 10))
         self.label.pack(side="top")
-        self.row = [" "] * 2
+        self.row = [""] * 2
         self.row[0] = EntryFrame(self, side="top", fill="x", expand=True)
         self.row[1] = EntryFrame(self, side="top", fill="x", expand=True)
-        BufferFrame(self, 10, 1, "top")
+        spacer(self, 10, 1, "top")
         self.save_frame = SaveFrame(
             self, side="top", fill="both", expand=True
             )
@@ -528,7 +559,9 @@ class EntryFrame(SimpleFrame):
         self.col = [""] * 2
         for index in range(2):
             self.ent[index] = tk.DoubleVar()
-            self.col[index] = tk.Entry(self, textvariable=self.ent[index])
+            self.col[index] = tk.Entry(
+                self, textvariable=self.ent[index], width=10
+                )
             self.col[index].pack(side="left", fill="none", expand=True)
 
 
@@ -540,22 +573,23 @@ class SaveFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Name your matrix", font=("Helvetica", 12)
+            self, text="Name your matrix", font=("Helvetica", 10)
             )
         self.label.pack(side="top")
         self.container = SimpleFrame(
             self, side="top", fill="both", expand=True)
-        self.name_label = tk.Label(
-            self.container, text="Name:", font=("Helvetica", 12)
+        '''self.name_label = tk.Label(
+            self.container, text="Name:", font=("Helvetica", 10)
             )
-        self.name_label.pack(side="left")
+        self.name_label.pack(side="left")'''
         self.matrix_name = tk.StringVar()
         self.name_entry = tk.Entry(
-            self.container, textvariable=self.matrix_name
+            self.container, textvariable=self.matrix_name, width=13,
+            font=("Helvetica", 8)
             )
         self.name_entry.pack(side="left", fill="none", expand=True)
         self.save_button = tk.Button(
-            self.container, text="Save and refresh",
+            self.container, text="Refresh",
             command=self.save_matrix, height=1, font=("Helvetica", 8)
             )
         self.save_button.pack(side="left", fill="none", expand=True)
@@ -570,7 +604,7 @@ class PlotFrame(SimpleFrame):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
-        self.plot_figure = Figure(figsize=(8, 8), dpi=100)
+        self.plot_figure = Figure(figsize=(5, 5), dpi=100)
         self.plot_axis = self.plot_figure.add_subplot(111)
         self.plot_axis.set_axisbelow(True)
         self.plot_axis.set_aspect('equal', 'box')
@@ -581,10 +615,7 @@ class PlotFrame(SimpleFrame):
         self.canvas = FigureCanvasTkAgg(self.plot_figure, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(
-            side="bottom", fill="both", expand=True
-            )
-        self.canvas._tkcanvas.pack(
-            side="top", fill="both", expand=True
+            side="top", fill="both", expand=True,
             )
         self.canvas.mpl_connect('button_press_event', self.onclick)
 
@@ -598,10 +629,13 @@ class PlotFrame(SimpleFrame):
         y[0] = self.root.data.before[1, ]
         x[1] = self.root.data.after[0, ]
         y[1] = self.root.data.after[1, ]
+        ax_lim = 4.5
+        '''  # Automatic axis rescaling.
         entry_list = x[0].tolist() + y[0].tolist() + x[1].tolist() +\
             y[1].tolist()
         max_entry = max(map(abs, entry_list))
         ax_lim = max([max_entry * 1.2, 3])
+        '''
         self.plot_axis.clear()
         self.plot_axis.axhline(y=0, color='k')
         self.plot_axis.axvline(x=0, color='k')
@@ -621,11 +655,15 @@ class PlotFrame(SimpleFrame):
         before, = self.plot_before
         after, = self.plot_after
         self.plot_axis.legend(
-            [before, after], ['Before Transformation',
-                              'After Transformation'], loc='upper right'
+            [before, after], ['Before',
+                              'After'], loc='upper right',
+            fontsize=8, fancybox=True
             )
         self.plot_axis.set_xlim(np.array((-ax_lim, ax_lim)))
         self.plot_axis.set_ylim(np.array((-ax_lim, ax_lim)))
+        self.plot_axis.set_title(
+            "pymap plot by matplotlib.pyplot", fontsize=10, loc='right'
+            )
         self.canvas.draw()
 
     def onclick(self, event):
