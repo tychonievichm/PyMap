@@ -1,5 +1,6 @@
 #!/usr/bin/env python.
 # -*- coding: utf-8 -*-
+# pylint: disable=E1101,R0901,W0212
 '''
 #########################################################################
 #                                                                       #
@@ -66,9 +67,9 @@ last one will be included.  Matrices with an empty name will be named.
 Any character other than colon and backslash is allowed in this name.
 
 <space-separated list of values> are the entries of the 2x2 matrix
-                            /a_11 a_12\
-                            \a_21 a_22/
-given in the order a_11 a_12 a_21 a_22.  There must be exactly four numbers
+                            /a[0]1 a[0]2\
+                            \a[1]1 a[1]2/
+given in the order a[0]1 a[0]2 a[1]1 a[1]2.  There must be exactly four numbers
 on this list!
 
 #########################################################################
@@ -261,17 +262,13 @@ def _renew_polygons_ini():
 #########################################################################
 
 
-app_data = AppData(  # pylint: disable=C0103
-    "rectangle", "default", BasePoint(.5, .5)
-    )
-
-
-class SimpleFrame(tk.Frame):  # pylint: disable=R0901
+class SimpleFrame(tk.Frame):
     '''This class is to condense some Frame creation and packing code into
     fewer lines.
     '''
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, *args, root=None, **kwargs):
         super().__init__(parent, None)
+        self.root = root
         self.pack(*args, **kwargs)
 
 
@@ -292,32 +289,27 @@ class PyMapApp(tk.Tk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         super().title("PyMap")
+        self.data = AppData(
+                    "rectangle", "default", BasePoint(.5, .5)
+                    )
         self.container = SimpleFrame(
-            self, side="top", fill="both", expand=True
+            self, side="top", fill="both", expand=True, root=self
             )
-        self.main_frame = MainFrame(self.container)
-
-    def replot(self):
-        '''Currently just an alias.'''
-        self.main_frame.plot_frame.replot()
-
-
-class MainFrame(SimpleFrame):  # pylint: disable=R0901
-    '''Temporary class to help organize code.'''
-    def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, *args, **kwargs)
         self.control_frame = ControlFrame(
-            self, side="left", fill="none", expand=True
+            self.container, side="left", fill="none", expand=True
             )
         self.plot_frame = PlotFrame(
-            self, side="left", fill="both", expand=True
+            self.container, side="left", fill="both", expand=True
             )
 
 
-class ControlFrame(SimpleFrame):  # pylint: disable=R0901
-    '''Frame to house user controls.'''
+class ControlFrame(SimpleFrame):
+    '''Frame to house user controls.  Its methods govern the tkinter app
+    behavior.
+    '''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+        self.root = parent.root
         BufferFrame(self, 40, 1, "top")
         self.polygon_frame = PolygonFrame(
             self, side="top", fill="both", expand=True
@@ -333,66 +325,58 @@ class ControlFrame(SimpleFrame):  # pylint: disable=R0901
         BufferFrame(self, 300, 1, "top")
 
     def refresh_entries(self):
-        '''This takes the data from app_data and propagates it to the UI.
+        '''This takes the data from root.data and propagates it to the UI.
         before refreshing the plot figure.
         '''
-        base_point = app_data.base_point.array
-        self.base_point_frame.entry.ent_1.set(float(base_point.item(0, 0)))
-        self.base_point_frame.entry.ent_2.set(float(base_point.item(1, 0)))
-        array = app_data.matrix.array
-        self.matrix_frame.row_1.ent_1.set(array.item(0, 0))
-        self.matrix_frame.row_1.ent_2.set(array.item(0, 1))
-        self.matrix_frame.row_2.ent_1.set(array.item(1, 0))
-        self.matrix_frame.row_2.ent_2.set(array.item(1, 1))
-        name = app_data.matrix.name
+        base_point = self.root.data.base_point.array
+        base_entry = self.base_point_frame.entry
+        array = self.root.data.matrix.array
+        row = self.matrix_frame.row
+        name = self.root.data.matrix.name
         self.matrix_frame.save_frame.matrix_name.set(name)
-        app_data.make_plot_polygon()
-        app_data.make_transformed_polygon()
-        app.replot()
+        for row_index in range(2):
+            base_entry.ent[row_index].set(float(base_point.item(row_index, 0)))
+            for col_index in range(2):
+                row[row_index].ent[col_index].set(
+                    array.item(row_index, col_index)
+                    )
+        self.root.data.make_plot_polygon()
+        self.root.data.make_transformed_polygon()
+        self.root.plot_frame.replot()
 
     def update_app_data(self):
-        '''This takes the data from the UI and propagates it to app_data.
+        '''This takes the data from the UI and propagates it to root.data.
         Non-numeric entries to numeric field are replaced by default values.
         Attempts at entering complex numbers will be considered non-
         numeric!
         '''
         name = self.matrix_frame.save_frame.matrix_name.get()
+        x_list = [""] * 2
+        y_list = [""] * 2
         try:
             entry = self.base_point_frame.entry
-            base_point = BasePoint(entry.ent_1.get(), entry.ent_2.get())
+            base_point = BasePoint(entry.ent[0].get(), entry.ent[1].get())
         except tk.TclError:
             base_point = BasePoint(0, 0)
             name = name + ' Error: a base point entry was non-numeric. '
-        app_data.base_point = base_point
-        row_1 = self.matrix_frame.row_1
-        try:
-            x_1 = row_1.ent_1.get()
-        except tk.TclError:
-            x_1 = 1
-            name = name + ' Error: matrix entry (1,1) was non-numeric. '
-        try:
-            x_2 = row_1.ent_2.get()
-        except tk.TclError:
-            x_2 = 0
-            name = name + ' Error: matrix entry (1,2) was non-numeric. '
-        x_list = [x_1, x_2]
-        row_2 = self.matrix_frame.row_2
-        try:
-            y_1 = row_2.ent_1.get()
-        except tk.TclError:
-            y_1 = 0
-            name = name + ' Error: matrix entry (2,1) was non-numeric. '
-        try:
-            y_2 = row_2.ent_2.get()
-        except tk.TclError:
-            y_2 = 1
-            name = name + ' Error: matrix entry (2,2) was non-numeric. '
-        y_list = [y_1, y_2]
+        self.root.data.base_point = base_point
+        row = self.matrix_frame.row
+        for row_index in range(2):
+            try:
+                x_list[row_index] = row[0].ent[row_index].get()
+            except tk.TclError:
+                x_list[row_index] = 0
+                name = name + ' Error: a matrix entry was non-numeric. '
+            try:
+                y_list[row_index] = row[1].ent[row_index].get()
+            except tk.TclError:
+                y_list[row_index] = 1
+                name = name + ' Error: a matrix entry was non-numeric. '
         matrix = Matrix(name, x_list, y_list)
         # Save the matrix to the dictionary if an unused name is given, then
         # reload the dropdown menu to allow the matrix to be used again.
-        if name not in list(app_data.matrix_dict.keys()):
-            app_data.matrix_dict[name] = matrix
+        if name not in list(self.root.data.matrix_dict.keys()):
+            self.root.data.matrix_dict[name] = matrix
             self.matrix_frame.choices.append(name)
             self.matrix_frame.choice.set(name)
             self.matrix_frame.menu_frame.reload(
@@ -400,44 +384,62 @@ class ControlFrame(SimpleFrame):  # pylint: disable=R0901
                 *self.matrix_frame.choices,
                 command=self.matrix_frame.change_matrix
                 )
-        app_data.matrix = matrix
+        self.root.data.matrix = matrix
         self.refresh_entries()
-        app.replot()
+
+    def change_polygon(self, choice):
+        '''Changes the polygon in root.data when a new selection on the
+        pulldown is made.  It then updates the rest of the UI.
+        '''
+        self.root.data.polygon = self.root.data.polygon_dict[choice]
+        try:
+            entry = self.base_point_frame.entry
+            base_point = BasePoint(entry.ent[0].get(), entry.ent[1].get())
+        except tk.TclError:
+            base_point = BasePoint(0, 0)
+            self.root.data.polygon.name = self.root.data.polygon.name +\
+                ' Error: base point entry was non-numeric. '
+        self.root.data.base_point = base_point
+        self.refresh_entries()
+
+    def change_matrix(self, choice):
+        '''Changes the matrix in root.data when a new selection on the
+        pulldown is made.  It then updates the rest of the UI.
+        '''
+        self.root.data.matrix = self.root.data.matrix_dict[choice]
+        try:
+            entry = self.base_point_frame.entry
+            base_point = BasePoint(entry.ent[0].get(), entry.ent[1].get())
+        except tk.TclError:
+            base_point = BasePoint(0, 0)
+            self.root.data.polygon.name = self.root.data.polygon.name +\
+                ' Error: base point entry was non-numeric. '
+        self.root.data.base_point = base_point
+        self.refresh_entries()
 
 
-class PolygonFrame(SimpleFrame):  # pylint: disable=R0901
+class PolygonFrame(SimpleFrame):
     '''A frame to hold polygon-related widgets.'''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+        self.root = parent.root
         self.label = tk.Label(
             self, text="Polygon Name", font=("Helvetica", 12)
             )
         self.label.pack(side="top")
         self.choice = tk.StringVar(self)
-        self.choices = list(app_data.polygon_dict.keys())
+        self.choices = list(self.root.data.polygon_dict.keys())
         self.choice.set(self.choices[0])
         self.menu_frame = MenuFrame(
             self, self.choice, *self.choices, command=self.change_polygon
             )
 
-    @staticmethod
-    def change_polygon(choice):
-        '''Changes the polygon in app_data when a new selection on the
-        pulldown is made.  It then updates the rest of the UI.
-        '''
-        app_data.polygon = app_data.polygon_dict[choice]
-        try:
-            entry = app.main_frame.control_frame.base_point_frame.entry
-            base_point = BasePoint(entry.ent_1.get(), entry.ent_2.get())
-        except tk.TclError:
-            base_point = BasePoint(0, 0)
-            app_data.polygon.name = app_data.polygon.name +\
-                ' Error: base point entry was non-numeric. '
-        app_data.base_point = base_point
-        app.main_frame.control_frame.refresh_entries()
+    def change_polygon(self, choice):
+        '''Currently just an alias for the change_polygon() method.'''
+        self.root.control_frame.change_polygon(choice)
 
 
-class MenuFrame(tk.Frame):  # pylint: disable=R0901
+class MenuFrame(tk.Frame):
     '''Constructs a frame with a dropdown menu and a method to reload it.
     Tkinter does not make it easy to change the options on a dropdown menu,
     so this is my workaround.'''
@@ -475,7 +477,7 @@ class MenuFrame(tk.Frame):  # pylint: disable=R0901
         self.menu.pack(side="top", fill="x", expand=True)
 
 
-class BasePointFrame(SimpleFrame):  # pylint: disable=R0901
+class BasePointFrame(SimpleFrame):
     '''Temporary class to help organize code.'''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
@@ -486,16 +488,17 @@ class BasePointFrame(SimpleFrame):  # pylint: disable=R0901
         self.entry = EntryFrame(self, side="top", fill="x", expand=True)
 
 
-class MatrixFrame(SimpleFrame):  # pylint: disable=R0901
+class MatrixFrame(SimpleFrame):
     '''A frame to hold matrix-related widgets.'''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+        self.root = parent.root
         self.label = tk.Label(
             self, text="Matrix name", font=("Helvetica", 12)
             )
         self.label.pack(side="top")
         self.choice = tk.StringVar(self)
-        self.choices = list(app_data.matrix_dict.keys())
+        self.choices = list(self.root.data.matrix_dict.keys())
         self.choice.set(self.choices[0])
         self.menu_frame = MenuFrame(
             self, self.choice, *self.choices, command=self.change_matrix
@@ -504,48 +507,38 @@ class MatrixFrame(SimpleFrame):  # pylint: disable=R0901
         self.label = tk.Label(self, text="Matrix entries",
                               font=("Helvetica", 12))
         self.label.pack(side="top")
-        self.row_1 = EntryFrame(self, side="top", fill="x", expand=True)
-        self.row_2 = EntryFrame(self, side="top", fill="x", expand=True)
+        self.row = [" "] * 2
+        self.row[0] = EntryFrame(self, side="top", fill="x", expand=True)
+        self.row[1] = EntryFrame(self, side="top", fill="x", expand=True)
         BufferFrame(self, 10, 1, "top")
         self.save_frame = SaveFrame(
             self, side="top", fill="both", expand=True
             )
 
-    @staticmethod
-    def change_matrix(choice):
-        '''Changes the matrix in app_data when a new selection on the
-        pulldown is made.  It then updates the rest of the UI.
-        '''
-        app_data.matrix = app_data.matrix_dict[choice]
-        try:
-            entry = app.main_frame.control_frame.base_point_frame.entry
-            base_point = BasePoint(entry.ent_1.get(), entry.ent_2.get())
-        except tk.TclError:
-            base_point = BasePoint(0, 0)
-            app_data.polygon.name = app_data.polygon.name +\
-                ' Error: base point entry was non-numeric. '
-        app_data.base_point = base_point
-        app.main_frame.control_frame.refresh_entries()
+    def change_matrix(self, choice):
+        '''Currently just an alias for the change_matrix() method.'''
+        self.root.control_frame.change_matrix(choice)
 
 
-class EntryFrame(SimpleFrame):  # pylint: disable=R0901
+class EntryFrame(SimpleFrame):
     '''Container for numeric entry widgets.'''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
-        self.ent_1 = tk.DoubleVar()
-        self.ent_2 = tk.DoubleVar()
-        self.col_1 = tk.Entry(self, textvariable=self.ent_1)
-        self.col_1.pack(side="left", fill="none", expand=True)
-        self.col_2 = tk.Entry(self, textvariable=self.ent_2)
-        self.col_2.pack(side="left", fill="none", expand=True)
+        self.ent = [""] * 2
+        self.col = [""] * 2
+        for index in range(2):
+            self.ent[index] = tk.DoubleVar()
+            self.col[index] = tk.Entry(self, textvariable=self.ent[index])
+            self.col[index].pack(side="left", fill="none", expand=True)
 
 
-class SaveFrame(SimpleFrame):  # pylint: disable=R0901
+class SaveFrame(SimpleFrame):
     '''A frame to hold widgets related to saving a user-entered matrix in
     the app.
     '''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+        self.root = parent.root
         self.label = tk.Label(
             self, text="Name your matrix", font=("Helvetica", 12)
             )
@@ -567,16 +560,16 @@ class SaveFrame(SimpleFrame):  # pylint: disable=R0901
             )
         self.save_button.pack(side="left", fill="none", expand=True)
 
-    @staticmethod
-    def save_matrix():
+    def save_matrix(self):
         '''Currently just an alias for the update_app_data() method.'''
-        app.main_frame.control_frame.update_app_data()
+        self.root.control_frame.update_app_data()
 
 
-class PlotFrame(SimpleFrame):  # pylint: disable=R0901
+class PlotFrame(SimpleFrame):
     '''Frame to hold a canvas with matplotlib plots.'''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+        self.root = parent.root
         self.plot_figure = Figure(figsize=(8, 8), dpi=100)
         self.plot_axis = self.plot_figure.add_subplot(111)
         self.plot_axis.set_axisbelow(True)
@@ -590,20 +583,23 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0901
         self.canvas.get_tk_widget().pack(
             side="bottom", fill="both", expand=True
             )
-        self.canvas._tkcanvas.pack(  # pylint: disable=W0212
+        self.canvas._tkcanvas.pack(
             side="top", fill="both", expand=True
             )
         self.canvas.mpl_connect('button_press_event', self.onclick)
 
     def replot(self):
         '''Erases old plots and creates a new plot based on the contents
-        of app_data.
+        of root.data.
         '''
-        x_1 = app_data.before[0, ]
-        y_1 = app_data.before[1, ]
-        x_2 = app_data.after[0, ]
-        y_2 = app_data.after[1, ]
-        entry_list = x_1.tolist() + y_1.tolist() + x_2.tolist() + y_2.tolist()
+        x = 2*[""]  # pylint: disable=C0103
+        y = 2*[""]  # pylint: disable=C0103
+        x[0] = self.root.data.before[0, ]
+        y[0] = self.root.data.before[1, ]
+        x[1] = self.root.data.after[0, ]
+        y[1] = self.root.data.after[1, ]
+        entry_list = x[0].tolist() + y[0].tolist() + x[1].tolist() +\
+            y[1].tolist()
         max_entry = max(map(abs, entry_list))
         ax_lim = max([max_entry * 1.2, 3])
         self.plot_axis.clear()
@@ -611,16 +607,16 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0901
         self.plot_axis.axvline(x=0, color='k')
         self.plot_axis.grid(True, which='both')
         self.plot_before = self.plot_axis.plot(
-            x_1, y_1, color='#666666', linewidth=2.5
+            x[0], y[0], color='#666666', linewidth=2.5
             )
         self.plot_after = self.plot_axis.plot(
-            x_2, y_2, color='#BB0000', linewidth=2.5
+            x[1], y[1], color='#BB0000', linewidth=2.5
             )
         self.fill_before = self.plot_axis.fill(
-            x_1, y_1, facecolor='#666666', alpha=.5
+            x[0], y[0], facecolor='#666666', alpha=.5
             )
         self.fill_after = self.plot_axis.fill(
-            x_2, y_2, facecolor='#BB0000', alpha=.5
+            x[1], y[1], facecolor='#BB0000', alpha=.5
             )
         before, = self.plot_before
         after, = self.plot_after
@@ -632,25 +628,26 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0901
         self.plot_axis.set_ylim(np.array((-ax_lim, ax_lim)))
         self.canvas.draw()
 
-    @staticmethod
-    def onclick(event):
+    def onclick(self, event):
         '''Places coordinate information in the UI when the user clicks on
         the plot and then updates the app using the coordinates as a base
         point for the polygon.'''
-        entry = app.main_frame.control_frame.base_point_frame.entry
+        entry = app.control_frame.base_point_frame.entry
         if event.xdata is not None and event.ydata is not None:
-            entry.ent_1.set(event.xdata)
-            entry.ent_2.set(event.ydata)
-            app.main_frame.control_frame.update_app_data()
+            entry.ent[0].set(event.xdata)
+            entry.ent[1].set(event.ydata)
+            self.root.control_frame.update_app_data()
 
 
 app = PyMapApp()  # pylint: disable=C0103
-app.main_frame.control_frame.refresh_entries()
+app.control_frame.refresh_entries()
 # This detects if the program is running from a file instead of an
 # interpreter and loads the app icon appropriately.
-if hasattr(sys, '_MEIPASS'):
-    path = sys._MEIPASS  # pylint: disable=W0212, E1101, C0103
-else:
-    path = os.path.abspath(".")  # pylint: disable=C0103
-app.iconbitmap(os.path.join(path, 'icon.ico'))
-app.mainloop()
+try:
+    if hasattr(sys, '_MEIPASS'):
+        path = sys._MEIPASS  # pylint: disable=C0103
+    else:
+        path = os.path.abspath(".")  # pylint: disable=C0103
+        app.iconbitmap(os.path.join(path, 'icon.ico'))
+finally:
+    app.mainloop()
