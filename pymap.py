@@ -315,12 +315,19 @@ class PyMapApp(tk.Tk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         super().title("pymap")
+        # sets the color of the plotted polygons, the axes, and the grid
+        self.plot_color = ['#666666', '#BB0000', '#000000', '#666666']
+        self.rescale_axes = False
+        # sets the font used in the UI
+        self.app_font = "Helvetica"
         self.data = AppData(
                     "rectangle", "default", BasePoint(.5, .5)
                     )
         self.container = SimpleFrame(
             self, side="top", fill="both", expand=True, root=self
             )
+        # The control_adjuster frame keeps the UI the same size if the app
+        # window is resized.
         self.control_adjuster = SimpleFrame(
             self.container, side="left", fill="y", expand=False
             )
@@ -340,18 +347,13 @@ class ControlFrame(SimpleFrame):
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
+        pack_kwargs = {"side": "top", "fill": "both", "expand": True}
         spacer(self, 40, 1, "top")
-        self.polygon_frame = PolygonFrame(
-            self, side="top", fill="both", expand=True
-            )
+        self.polygon_frame = PolygonFrame(self, **pack_kwargs)
         spacer(self, 10, 1, "top")
-        self.base_point_frame = BasePointFrame(
-            self, side="top", fill="both", expand=True
-            )
+        self.base_point_frame = BasePointFrame(self, **pack_kwargs)
         spacer(self, 30, 1, "top")
-        self.matrix_frame = MatrixFrame(
-            self, side="top", fill="both", expand=True
-            )
+        self.matrix_frame = MatrixFrame(self, **pack_kwargs)
         spacer(self, 40, 1, "top")
 
     def refresh_entries(self):
@@ -381,10 +383,11 @@ class ControlFrame(SimpleFrame):
         numeric!  This should be rewritten so that the numbers are put in a
         single list instead of two.
         '''
-        name = self.matrix_frame.save_frame.matrix_name.get()
-        row = self.matrix_frame.row
-        x_list = [""] * 2
-        y_list = [""] * 2
+        mat = self.matrix_frame
+        name = mat.save_frame.matrix_name.get()
+        row = mat.row
+        x_list = [0] * 2
+        y_list = [1] * 2
         try:
             entry = self.base_point_frame.entry
             base_point = BasePoint(entry.ent[0].get(), entry.ent[1].get())
@@ -408,12 +411,10 @@ class ControlFrame(SimpleFrame):
         # reload the dropdown menu to allow the matrix to be used again.
         if name not in list(self.root.data.matrix_dict.keys()):
             self.root.data.add_matrix_to_dict(matrix)
-            self.matrix_frame.choices.append(name)
-            self.matrix_frame.choice.set(name)
-            self.matrix_frame.menu_frame.reload(
-                self.matrix_frame.choice,
-                *self.matrix_frame.choices,
-                command=self.matrix_frame.change_matrix
+            mat.choices.append(name)
+            mat.choice.set(name)
+            mat.menu_frame.reload(
+                mat.choice, *mat.choices, command=mat.change_matrix
                 )
         self.root.data.matrix = matrix
         self.refresh_entries()
@@ -455,7 +456,7 @@ class PolygonFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Polygon", font=("Helvetica", 12)
+            self, text="Polygon", font=(self.root.app_font, 12)
             )
         self.label.pack(side="top")
         self.choice = tk.StringVar(self)
@@ -476,6 +477,7 @@ class MenuFrame(tk.Frame):
     so this is my workaround.'''
     def __init__(self, parent, choice, *choices, command=None):
         super().__init__(parent)
+        self.root = parent.root
         self.pack(side="top", fill="none", expand=True)
         self.menu = tk.OptionMenu(  # pylint: disable=E1120
                 self, choice, *choices
@@ -498,7 +500,7 @@ class MenuFrame(tk.Frame):
             self.menu = tk.OptionMenu(  # pylint: disable=E1120
                 self, choice, *choices, command=command
                 )
-        self.menu.config(width=13, height=1, font=("Helvetica", 8))
+        self.menu.config(width=13, height=1, font=(self.root.app_font, 8))
         self.menu.pack(side="top", fill="x", expand=True)
 
 
@@ -506,8 +508,10 @@ class BasePointFrame(SimpleFrame):
     '''Temporary class to help organize code.'''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
+        self.root = parent.root
         self.label = tk.Label(
-            self, text="Translate the polygon by", font=("Helvetica", 10)
+            self, text="Translate the polygon by",
+            font=(self.root.app_font, 10)
             )
         self.label.pack(side="top")
         self.entry = EntryFrame(self, side="top", fill="x", expand=True)
@@ -519,7 +523,7 @@ class MatrixFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Matrix", font=("Helvetica", 12)
+            self, text="Matrix", font=(self.root.app_font, 12)
             )
         self.label.pack(side="top")
         self.choice = tk.StringVar(self)
@@ -530,11 +534,12 @@ class MatrixFrame(SimpleFrame):
             )
         spacer(self, 10, 1, "top")
         self.label = tk.Label(self, text="Matrix entries",
-                              font=("Helvetica", 10))
+                              font=(self.root.app_font, 10))
         self.label.pack(side="top")
         self.row = [""] * 2
-        self.row[0] = EntryFrame(self, side="top", fill="x", expand=True)
-        self.row[1] = EntryFrame(self, side="top", fill="x", expand=True)
+        pack_kwargs = {"side": "top", "fill": "x", "expand": True}
+        self.row[0] = EntryFrame(self, **pack_kwargs)
+        self.row[1] = EntryFrame(self, **pack_kwargs)
         spacer(self, 10, 1, "top")
         self.save_frame = SaveFrame(
             self, side="top", fill="both", expand=True
@@ -549,10 +554,9 @@ class EntryFrame(SimpleFrame):
     '''Container for numeric entry widgets.'''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
-        self.ent = [""] * 2
+        self.ent = [tk.DoubleVar(), tk.DoubleVar()]
         self.col = [""] * 2
         for index in range(2):
-            self.ent[index] = tk.DoubleVar()
             self.col[index] = tk.Entry(
                 self, textvariable=self.ent[index], width=10
                 )
@@ -567,26 +571,27 @@ class SaveFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Name your matrix", font=("Helvetica", 10)
+            self, text="Name your matrix", font=(self.root.app_font, 10)
             )
         self.label.pack(side="top")
         self.container = SimpleFrame(
             self, side="top", fill="both", expand=True)
         '''self.name_label = tk.Label(
-            self.container, text="Name:", font=("Helvetica", 10)
+            self.container, text="Name:", font=(self.root.app_font, 10)
             )
         self.name_label.pack(side="left")'''
         self.matrix_name = tk.StringVar()
         self.name_entry = tk.Entry(
             self.container, textvariable=self.matrix_name, width=13,
-            font=("Helvetica", 8)
+            font=(self.root.app_font, 8)
             )
-        self.name_entry.pack(side="left", fill="none", expand=True)
+        pack_kwargs = {"side": "left", "fill": "none", "expand": True}
+        self.name_entry.pack(**pack_kwargs)
         self.save_button = tk.Button(
             self.container, text="Refresh",
-            command=self.save_matrix, height=1, font=("Helvetica", 8)
+            command=self.save_matrix, height=1, font=(self.root.app_font, 8)
             )
-        self.save_button.pack(side="left", fill="none", expand=True)
+        self.save_button.pack(**pack_kwargs)
 
     def save_matrix(self):
         '''Currently just an alias for the update_app_data() method.'''
@@ -602,10 +607,10 @@ class PlotFrame(SimpleFrame):
         self.plot_axis = self.plot_figure.add_subplot(111)
         self.plot_axis.set_axisbelow(True)
         self.plot_axis.set_aspect('equal', 'box')
-        self.plot_before = None
-        self.plot_after = None
-        self.fill_before = None
-        self.fill_after = None
+        self.plot_before = self.plot_axis.plot([0], [0])
+        self.plot_after = self.plot_axis.plot([0], [0])
+        self.fill_before = self.plot_axis.fill([0], [0])
+        self.fill_after = self.plot_axis.fill([0], [0])
         self.canvas = FigureCanvasTkAgg(self.plot_figure, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(
@@ -617,46 +622,33 @@ class PlotFrame(SimpleFrame):
         '''Erases old plots and creates a new plot based on the contents
         of root.data.
         '''
-        x = 2*[""]  # pylint: disable=C0103
-        y = 2*[""]  # pylint: disable=C0103
-        x[0] = self.root.data.before[0, ]
-        y[0] = self.root.data.before[1, ]
-        x[1] = self.root.data.after[0, ]
-        y[1] = self.root.data.after[1, ]
+        app_data = self.root.data
+        x = [app_data.before[0, ], app_data.after[0, ]]
+        y = [app_data.before[1, ], app_data.after[1, ]]
         ax_lim = 4.5
-        '''  # Automatic axis rescaling.
-        entry_list = x[0].tolist() + y[0].tolist() + x[1].tolist() +\
-            y[1].tolist()
-        max_entry = max(map(abs, entry_list))
-        ax_lim = max([max_entry * 1.2, 3])
-        '''
-        self.plot_axis.clear()
-        self.plot_axis.axhline(y=0, color='k')
-        self.plot_axis.axvline(x=0, color='k')
-        self.plot_axis.grid(True, which='both')
-        self.plot_before = self.plot_axis.plot(
-            x[0], y[0], color='#666666', linewidth=2.5
-            )
-        self.plot_after = self.plot_axis.plot(
-            x[1], y[1], color='#BB0000', linewidth=2.5
-            )
-        self.fill_before = self.plot_axis.fill(
-            x[0], y[0], facecolor='#666666', alpha=.5
-            )
-        self.fill_after = self.plot_axis.fill(
-            x[1], y[1], facecolor='#BB0000', alpha=.5
-            )
-        before, = self.plot_before
-        after, = self.plot_after
-        self.plot_axis.legend(
-            [before, after], ['Before',
-                              'After'], loc='upper right',
+        if self.root.rescale_axes is True:
+            entry_list = np.concatenate([x[0], x[1], y[0], y[1]]).tolist()
+            max_entry = max(map(abs, entry_list))
+            ax_lim = max([max_entry * 1.2, 4.5])
+        ax = self.plot_axis
+        ax.clear()
+        color = self.root.plot_color
+        ax.axhline(y=0, color=color[2])
+        ax.axvline(x=0, color=color[2])
+        ax.grid(True, which='both', color=color[3])
+        self.plot_before = ax.plot(x[0], y[0], color=color[0], linewidth=2.5)
+        self.plot_after = ax.plot(x[1], y[1], color=color[1], linewidth=2.5)
+        self.fill_before = ax.fill(x[0], y[0], facecolor=color[0], alpha=.5)
+        self.fill_after = ax.fill(x[1], y[1], facecolor=color[1], alpha=.5)
+        (before, ) = self.plot_before
+        (after, ) = self.plot_after
+        ax.legend(
+            [before, after], ['Before', 'After'], loc='upper right',
             fontsize=8, fancybox=True
             )
-        self.plot_axis.set_xlim(np.array((-ax_lim, ax_lim)))
-        self.plot_axis.set_ylim(np.array((-ax_lim, ax_lim)))
-        self.plot_axis.set_title(
-            "pymap plot by matplotlib.pyplot", fontsize=10, loc='right'
+        ax.axis(ax_lim * np.array([-1, 1, -1, 1]))
+        ax.set_title(
+            "pymap plot by matplotlib.pyplot", fontsize=10, loc='right',
             )
         self.canvas.draw()
 
@@ -674,7 +666,8 @@ class PlotFrame(SimpleFrame):
 app = PyMapApp()  # pylint: disable=C0103
 app.control_frame.refresh_entries()
 # This detects if the program is running from a file instead of an
-# interpreter and loads the app icon appropriately.
+# interpreter and loads the app icon appropriately.  If it can't load an icon,
+# the exception is ignored and the program runs with a tkinter feather icon.
 try:
     if hasattr(sys, '_MEIPASS'):
         path = sys._MEIPASS  # pylint: disable=C0103
