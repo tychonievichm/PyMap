@@ -147,6 +147,7 @@ class BasePoint(Polygon):  # pylint: disable=R0903
                 self.array.shape = (2, 1)
             except ValueError:
                 self.array = np.array([0, 0])
+                self.array.shape = (2, 1)
                 self.name = 'Error: base point did not have two coordinates. '
 
 
@@ -155,7 +156,11 @@ class AppData:
     Automatically performs calculations for the first polygon and the first
     matrix listed in the .ini files.
     '''
-    def __init__(self, base_point=[0, 0]):
+    def __init__(self, base_point=None):
+        if base_point is None:
+            base_point = BasePoint(0, 0)
+        self.base_point = base_point
+        print(self.base_point.array)
         self.polygon_dict = _read_polygons_to_dict()
         try:
             polygon_name = self.list_polygons()[0]
@@ -174,7 +179,6 @@ class AppData:
                 "application to regenerate matrices.ini."
             self.add_matrix_to_dict(Matrix(matrix_name, [1, 0], [0, 1]))
         self.matrix = self.matrix_dict[matrix_name]
-        self.base_point = base_point
         self.make_plot_polygon()
         self.make_transformed_polygon()
 
@@ -195,9 +199,11 @@ class AppData:
         self.polygon_dict[polygon.name] = polygon
 
     def list_polygons(self):
+        '''Presents the keys of the polygon dict as a list.'''
         return list(self.polygon_dict.keys())
 
     def list_matrices(self):
+        '''Presents the keys of the matrix dict as a list.'''
         return list(self.matrix_dict.keys())
 
 
@@ -327,7 +333,7 @@ class SimpleFrame(tk.Frame):
         self.pack(*args, **kwargs)
 
 
-def spacer(parent, ht, wd, sd):
+def spacer(parent, ht, wd, sd):  # pylint: disable=C0103
     """Empty frame for spacing purposes."""
     container = tk.Frame(parent, height=ht, width=wd)
     container.pack(side=sd, expand=False)
@@ -341,20 +347,23 @@ class PyMapApp(tk.Tk):
     could be replaced by functions, but they were left in because it
     makes it simpler to add features in the future.
     '''
+    # sets the color of the plotted polygons, the axes, and the grid
+    plot_color = ['#666666', '#BB0000', '#000000', '#666666']
+    # rescale_axes determines if the axis limits should increase to handle
+    # points that are far away from the origin.
+    rescale_axes = False
+    # sets the font used in the UI, as well as the small, medium, and large
+    # font sizes
+    font_name = "Helvetica"
+    font_size = [8, 10, 12]
+    # sets the default initial translation for a polygon
+    default_base_point = BasePoint(1, 0)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         super().title("pymap")
-        # sets the color of the plotted polygons, the axes, and the grid
-        self.plot_color = ['#666666', '#BB0000', '#000000', '#666666']
-        # rescale_axes determines if the axis limits should increase to handle
-        # points that are far away from the origin.
-        self.rescale_axes = False
-        # sets the font used in the UI, as well as the small, medium, and large
-        # font sizes
-        self.font_name = "Helvetica"
-        self.font_size = [8, 10, 12]
         # data is where the back end calculations are held.
-        self.data = AppData(base_point=BasePoint(.5, .5))
+        self.data = AppData(base_point=self.default_base_point)
         self.container = SimpleFrame(
             self, side="top", fill="both", expand=True, root=self
             )
@@ -516,8 +525,8 @@ class MenuFrame(tk.Frame):
         self.root = parent.root
         self.pack(side="top", fill="none", expand=True)
         self.menu = tk.OptionMenu(  # pylint: disable=E1120
-                self, choice, *choices
-                )
+            self, choice, *choices
+            )
         self.reload(choice, *choices, command=command)
 
     def reload(self, choice, *choices, command=None):
@@ -575,7 +584,7 @@ class MatrixFrame(SimpleFrame):
         spacer(self, 10, 1, "top")
         self.label = tk.Label(
             self, text="Matrix entries", font=(
-                    self.root.font_name, self.root.font_size[1]
+                self.root.font_name, self.root.font_size[1]
                 )
             )
         self.label.pack(side="top")
@@ -631,7 +640,7 @@ class SaveFrame(SimpleFrame):
         self.save_button = tk.Button(
             self.container, text="Refresh",
             command=self.save_matrix, height=1,
-                font=(self.root.font_name, self.root.font_size[0])
+            font=(self.root.font_name, self.root.font_size[0])
             )
         self.save_button.pack(**pack_kwargs)
 
@@ -640,7 +649,7 @@ class SaveFrame(SimpleFrame):
         self.root.control_frame.update_app_data()
 
 
-class PlotFrame(SimpleFrame):
+class PlotFrame(SimpleFrame):  # pylint: disable=R0902
     '''Frame to hold a canvas with matplotlib plots.'''
     def __init__(self, parent, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
@@ -664,15 +673,15 @@ class PlotFrame(SimpleFrame):
         '''Erases old plots and creates a new plot based on the contents
         of root.data.
         '''
-        app_data = self.root.data
-        x = [app_data.before[0, ], app_data.after[0, ]]
-        y = [app_data.before[1, ], app_data.after[1, ]]
+        data = self.root.data
+        x = [data.before[0, ], data.after[0, ]]  # pylint: disable=C0103
+        y = [data.before[1, ], data.after[1, ]]  # pylint: disable=C0103
         ax_lim = 4.5
         if self.root.rescale_axes is True:
             entry_list = np.concatenate([x[0], x[1], y[0], y[1]]).tolist()
             max_entry = max(map(abs, entry_list))
             ax_lim = max([max_entry * 1.2, 4.5])
-        ax = self.plot_axis
+        ax = self.plot_axis  # pylint: disable=C0103
         ax.clear()
         color = self.root.plot_color
         ax.axhline(y=0, color=color[2])
