@@ -103,7 +103,8 @@ class Polygon:  # pylint: disable=R0903
     because bad user inputs are almost certainly how these issues arise in
     the first place.).  Polygon and its subclasses are essentially numpy
     arrays with some special initialization requirements, but I found it
-    convenient to have a special "array" field.
+    convenient to have a special "array" field instead of building directly on
+    numpy.ndarray.
     '''
     def __init__(self, name=None, x_list=None, y_list=None):
         if name is None or name == "":
@@ -150,11 +151,28 @@ class BasePoint(Polygon):  # pylint: disable=R0903
 
 
 class AppData:
-    '''Gathers all of the backend calculations into a single object.'''
-    def __init__(self, polygon_name=None, matrix_name=None, base_point=None):
+    '''Gathers all of the backend calculations into a single object.
+    Automatically performs calculations for the first polygon and the first
+    matrix listed in the .ini files.
+    '''
+    def __init__(self, base_point=[0, 0]):
         self.polygon_dict = _read_polygons_to_dict()
-        self.matrix_dict = _read_matrices_to_dict()
+        try:
+            polygon_name = self.list_polygons()[0]
+        except IndexError:
+            polygon_name = "Error: polygons.ini contains no valid " +\
+                "polygons.  Delete polygons.ini and restart the " +\
+                "application to regenerate polygons.ini."
+            self.add_polygon_to_dict(Polygon(polygon_name, [1, 0], [0, 1]))
         self.polygon = self.polygon_dict[polygon_name]
+        self.matrix_dict = _read_matrices_to_dict()
+        try:
+            matrix_name = self.list_matrices()[0]
+        except IndexError:
+            matrix_name = "Error: matrices.ini contains no valid " +\
+                "matrices.  Delete matrices.ini and restart the " +\
+                "application to regenerate matrices.ini."
+            self.add_matrix_to_dict(Matrix(matrix_name, [1, 0], [0, 1]))
         self.matrix = self.matrix_dict[matrix_name]
         self.base_point = base_point
         self.make_plot_polygon()
@@ -176,6 +194,12 @@ class AppData:
         '''Add a polygon to the polygon dictionary.'''
         self.polygon_dict[polygon.name] = polygon
 
+    def list_polygons(self):
+        return list(self.polygon_dict.keys())
+
+    def list_matrices(self):
+        return list(self.matrix_dict.keys())
+
 
 def _read_matrices_to_dict():
     '''Get the list of matrices from the matrices.ini file.'''
@@ -196,14 +220,14 @@ def _read_matrices_to_dict():
             if name == "":
                 name = 'MissingNo Error: this matrix was given an ' +\
                     'incorrectly formatted name. '
-            coeff_list = matrix_data[matrix_data.index(
-                data_string) + 1].split(" ")
             try:
+                coeff_list = matrix_data[
+                    matrix_data.index(data_string) + 1].split(" ")
                 coeff_list = [float(entry) for entry in coeff_list]
-            except ValueError:
+            except (ValueError, IndexError):
                 coeff_list = [1, 0, 0, 1]
-                name = name + ' Error: a non-numeric value was given for ' +\
-                    'this matrix in matrices.ini. '
+                name = name + ' Error: the numerical data for this ' +\
+                    'matrix was incorrectly formatted in matrices.ini.'
             if len(coeff_list) != 4:
                 name = name + ' Error: this matrix was given too many ' +\
                     'entries in matrices.ini. '
@@ -253,9 +277,9 @@ def _read_polygons_to_dict():
                     shift = float(coord_list[i].pop(0).split(":")[1])
                     coord_list[i] = [float(entry) - shift for
                                      entry in coord_list[i]]
-            except ValueError:
+            except (ValueError, IndexError):
                 name = name + ' Error: the numerical data for this ' +\
-                    'polygon was incorrectly formatted.'
+                    'polygon was incorrectly formatted in polygons.ini.'
             polygon_dict[name] = Polygon(name, coord_list[0], coord_list[1])
     return polygon_dict
 
@@ -283,6 +307,11 @@ def _renew_polygons_ini():
 #########################################################################
 #                                                                       #
 #                             Tkinter code                              #
+# This part of the code generated the tkinter app and links it to the   #
+# back end code.  Many of the classes here are used for organizational  #
+# purposes only and could be replaced by functions.  Initialization     #
+# data for the matplotlib frame, as well as some text display options,  #
+# are held in the root tkinter app class.                               #
 #                                                                       #
 #########################################################################
 
@@ -317,12 +346,15 @@ class PyMapApp(tk.Tk):
         super().title("pymap")
         # sets the color of the plotted polygons, the axes, and the grid
         self.plot_color = ['#666666', '#BB0000', '#000000', '#666666']
+        # rescale_axes determines if the axis limits should increase to handle
+        # points that are far away from the origin.
         self.rescale_axes = False
-        # sets the font used in the UI
-        self.app_font = "Helvetica"
-        self.data = AppData(
-                    "rectangle", "default", BasePoint(.5, .5)
-                    )
+        # sets the font used in the UI, as well as the small, medium, and large
+        # font sizes
+        self.font_name = "Helvetica"
+        self.font_size = [8, 10, 12]
+        # data is where the back end calculations are held.
+        self.data = AppData(base_point=BasePoint(.5, .5))
         self.container = SimpleFrame(
             self, side="top", fill="both", expand=True, root=self
             )
@@ -332,9 +364,11 @@ class PyMapApp(tk.Tk):
             self.container, side="left", fill="y", expand=False
             )
         self.control_adjuster.root = self
+        # The control_frame holds the user controls.
         self.control_frame = ControlFrame(
             self.control_adjuster, side="top", fill="none", expand=False
             )
+        # The plot_frame holds the actual matplotlib plot.
         self.plot_frame = PlotFrame(
             self.container, side="left", fill="both", expand=True
             )
@@ -409,9 +443,10 @@ class ControlFrame(SimpleFrame):
         matrix = Matrix(name, x_list, y_list)
         # Save the matrix to the dictionary if an unused name is given, then
         # reload the dropdown menu to allow the matrix to be used again.
-        if name not in list(self.root.data.matrix_dict.keys()):
+        matrix_list = self.root.data.list_matrices()
+        if name not in matrix_list:
             self.root.data.add_matrix_to_dict(matrix)
-            mat.choices.append(name)
+            mat.choices = matrix_list
             mat.choice.set(name)
             mat.menu_frame.reload(
                 mat.choice, *mat.choices, command=mat.change_matrix
@@ -456,11 +491,12 @@ class PolygonFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Polygon", font=(self.root.app_font, 12)
+            self, text="Polygon",
+            font=(self.root.font_name, self.root.font_size[2])
             )
         self.label.pack(side="top")
         self.choice = tk.StringVar(self)
-        self.choices = list(self.root.data.polygon_dict.keys())
+        self.choices = self.root.data.list_polygons()
         self.choice.set(self.choices[0])
         self.menu_frame = MenuFrame(
             self, self.choice, *self.choices, command=self.change_polygon
@@ -500,7 +536,10 @@ class MenuFrame(tk.Frame):
             self.menu = tk.OptionMenu(  # pylint: disable=E1120
                 self, choice, *choices, command=command
                 )
-        self.menu.config(width=13, height=1, font=(self.root.app_font, 8))
+        self.menu.config(
+            width=13, height=1,
+            font=(self.root.font_name, self.root.font_size[0])
+            )
         self.menu.pack(side="top", fill="x", expand=True)
 
 
@@ -511,7 +550,7 @@ class BasePointFrame(SimpleFrame):
         self.root = parent.root
         self.label = tk.Label(
             self, text="Translate the polygon by",
-            font=(self.root.app_font, 10)
+            font=(self.root.font_name, self.root.font_size[1])
             )
         self.label.pack(side="top")
         self.entry = EntryFrame(self, side="top", fill="x", expand=True)
@@ -523,18 +562,22 @@ class MatrixFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Matrix", font=(self.root.app_font, 12)
+            self, text="Matrix",
+            font=(self.root.font_name, self.root.font_size[2])
             )
         self.label.pack(side="top")
         self.choice = tk.StringVar(self)
-        self.choices = list(self.root.data.matrix_dict.keys())
+        self.choices = self.root.data.list_matrices()
         self.choice.set(self.choices[0])
         self.menu_frame = MenuFrame(
             self, self.choice, *self.choices, command=self.change_matrix
             )
         spacer(self, 10, 1, "top")
-        self.label = tk.Label(self, text="Matrix entries",
-                              font=(self.root.app_font, 10))
+        self.label = tk.Label(
+            self, text="Matrix entries", font=(
+                    self.root.font_name, self.root.font_size[1]
+                )
+            )
         self.label.pack(side="top")
         self.row = [""] * 2
         pack_kwargs = {"side": "top", "fill": "x", "expand": True}
@@ -571,25 +614,24 @@ class SaveFrame(SimpleFrame):
         super().__init__(parent, *args, **kwargs)
         self.root = parent.root
         self.label = tk.Label(
-            self, text="Name your matrix", font=(self.root.app_font, 10)
+            self, text="Name your matrix", font=(
+                self.root.font_name, self.root.font_size[1]
+                )
             )
         self.label.pack(side="top")
         self.container = SimpleFrame(
             self, side="top", fill="both", expand=True)
-        '''self.name_label = tk.Label(
-            self.container, text="Name:", font=(self.root.app_font, 10)
-            )
-        self.name_label.pack(side="left")'''
         self.matrix_name = tk.StringVar()
         self.name_entry = tk.Entry(
             self.container, textvariable=self.matrix_name, width=13,
-            font=(self.root.app_font, 8)
+            font=(self.root.font_name, self.root.font_size[0])
             )
         pack_kwargs = {"side": "left", "fill": "none", "expand": True}
         self.name_entry.pack(**pack_kwargs)
         self.save_button = tk.Button(
             self.container, text="Refresh",
-            command=self.save_matrix, height=1, font=(self.root.app_font, 8)
+            command=self.save_matrix, height=1,
+                font=(self.root.font_name, self.root.font_size[0])
             )
         self.save_button.pack(**pack_kwargs)
 
@@ -644,11 +686,12 @@ class PlotFrame(SimpleFrame):
         (after, ) = self.plot_after
         ax.legend(
             [before, after], ['Before', 'After'], loc='upper right',
-            fontsize=8, fancybox=True
+            fontsize=self.root.font_size[0], fancybox=True
             )
         ax.axis(ax_lim * np.array([-1, 1, -1, 1]))
         ax.set_title(
-            "pymap plot by matplotlib.pyplot", fontsize=10, loc='right',
+            "pymap plot by matplotlib.pyplot", fontsize=self.root.font_size[1],
+            loc='right'
             )
         self.canvas.draw()
 
