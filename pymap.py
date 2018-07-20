@@ -14,7 +14,7 @@ Michael Dellnitz c. 1995, which was in turn adapted from the pplane5.m
 code by John Polking.  The code will take polygons and matrices from
 .ini files, load them, and then use matplotlib to show the effect of
 a selected matrix as a linear transformation on the selected polygon.
-Python tkinter and matplotlin are is used to create the GUI, while numpy
+Python tkinter and matplotlib are is used to create the GUI, while numpy
 is used on the back end for calculations.
 
 This program initilizes using two .ini files: polygons.ini and matrices.ini.
@@ -72,7 +72,7 @@ Any character other than colon and backslash is allowed in this name.
                             /a[0]1 a[0]2\
                             \a[1]1 a[1]2/
 given in the order a[0]1 a[0]2 a[1]1 a[1]2.  There must be exactly four
-numberson this list!
+numbers on this list!
 
 #########################################################################
 '''
@@ -160,7 +160,6 @@ class AppData:
         if base_point is None:
             base_point = BasePoint(0, 0)
         self.base_point = base_point
-        print(self.base_point.array)
         self.polygon_dict = _read_polygons_to_dict()
         try:
             polygon_name = self.list_polygons()[0]
