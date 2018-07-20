@@ -477,8 +477,10 @@ class MenuFrame(tk.Frame):
     def __init__(self, parent, choice, *choices, command=None):
         super().__init__(parent)
         self.pack(side="top", fill="none", expand=True)
-        self.menu = None
-        self.reload(choice, *choices, command)
+        self.menu = tk.OptionMenu(  # pylint: disable=E1120
+                self, choice, *choices
+                )
+        self.reload(choice, *choices, command=command)
 
     def reload(self, choice, *choices, command=None):
         '''Recreates the pulldown menu with an updated options list.  It
