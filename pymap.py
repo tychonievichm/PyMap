@@ -78,6 +78,7 @@ numbers on this list!
 '''
 import os
 import sys  # os and sys are imported only to look for the program icon
+import random  # to generate random colors
 import tkinter as tk  # tkinter powers the GUI
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -188,6 +189,10 @@ class AppData:
     def make_transformed_polygon(self):
         '''Create the transformed polygon array for plotting.'''
         self.after = self.matrix.array @ self.before
+
+    def make_transformed_polygon_again(self):
+        '''Transform the polygon again with the same matrix.'''
+        self.after = self.matrix.array @ self.after
 
     def add_matrix_to_dict(self, matrix):
         '''Add a matrix to the matrix dictionary.'''
@@ -350,7 +355,7 @@ class PyMapApp(tk.Tk):
     plot_color = ['#666666', '#BB0000', '#000000', '#666666']
     # rescale_axes determines if the axis limits should increase to handle
     # points that are far away from the origin.
-    rescale_axes = False
+    rescale_axes = False 
     # sets the font used in the UI, as well as the small, medium, and large
     # font sizes
     font_name = "Helvetica"
@@ -675,11 +680,11 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0902
         data = self.root.data
         x = [data.before[0, ], data.after[0, ]]  # pylint: disable=C0103
         y = [data.before[1, ], data.after[1, ]]  # pylint: disable=C0103
-        ax_lim = 4.5
+        ax_lim = 3.5
         if self.root.rescale_axes is True:
             entry_list = np.concatenate([x[0], x[1], y[0], y[1]]).tolist()
             max_entry = max(map(abs, entry_list))
-            ax_lim = max([max_entry * 1.2, 4.5])
+            ax_lim = max([max_entry * 1.2, 3.5])
         ax = self.plot_axis  # pylint: disable=C0103
         ax.clear()
         color = self.root.plot_color
@@ -703,15 +708,32 @@ class PlotFrame(SimpleFrame):  # pylint: disable=R0902
             )
         self.canvas.draw()
 
+    def add_plot(self):
+        '''Transforms the polygon again and plots it over any current plots.'''
+        data = self.root.data
+        ax = self.plot_axis  # pylint: disable=C0103
+        data.make_transformed_polygon_again()
+        color = "#"+''.join(
+            [random.choice('0123456789ABCDEF') for j in range(6)]
+            )
+        x = data.after[0, ]  # pylint: disable=C0103
+        y = data.after[1, ]  # pylint: disable=C0103
+        ax.plot(x, y, color=color, linewidth=2.5)
+        ax.fill(x, y, facecolor=color, alpha=.5)
+
     def onclick(self, event):
         '''Places coordinate information in the UI when the user clicks on
         the plot and then updates the app using the coordinates as a base
-        point for the polygon.'''
+        point for the polygon.  Clicking off of the axes in the plot window
+        adds an extra plot with a random color.'''
         entry = app.control_frame.base_point_frame.entry
         if event.xdata is not None and event.ydata is not None:
             entry.ent[0].set(event.xdata)
             entry.ent[1].set(event.ydata)
             self.root.control_frame.update_app_data()
+        else:
+            self.add_plot()
+            self.canvas.draw()
 
 
 app = PyMapApp()  # pylint: disable=C0103
