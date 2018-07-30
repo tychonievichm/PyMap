@@ -4,9 +4,18 @@ This program is a spiritual successor to the map.m program produced by Michael D
 
 ## Python
 
-Use of this program requires a Python 3 intepreter with the packages numpy, matplotlib, and tkinter installed.  The tkinter package is included in Python distributions by default, but you may need to install the others separately.  If you install the default Python 3.6.6 distribution from [Python.org](https://www.python.org/downloads/), it should come with a package manager called pip, which you can use to install these other packages.
+Use of this program requires a Python 3 intepreter with the packages numpy, matplotlib, and tkinter installed.  The tkinter package is included in _most_ Python distributions by default, but you may need to install the others separately.  
 
-The Anaconda distribution of Python 3.6 from [anaconda.com](https://www.anaconda.com/download/) includes these packages and much more, obviating the need for pip in this instance.
+If you install the default Python 3.6.6 distribution from [Python.org](https://www.python.org/downloads/), it should come with a package manager called pip, which you can use to install these other packages.  To install them, you can type
+```
+pip install numpy matplotlib
+```
+in your shell/command prompt once you've installed Python 3.  To run the program, open a command prompt in the directory that your pymap.py is located and enter
+```
+python pymap.py
+```
+
+As an alternative, the Anaconda distribution of Python 3.6 from [anaconda.com](https://www.anaconda.com/download/) includes these packages and much more, obviating the need for pip in this instance.  If you use this, open pymap.py in the Spyder program that comes with the distribution and click the green arrow.  If you want to run it outside of Spyder, you may have to run it from the Anaconda Prompt that comes with the distribution instead (it works just like your standard command prompt).
 
 ## Using the program
 
